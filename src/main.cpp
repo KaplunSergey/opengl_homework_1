@@ -4,8 +4,41 @@
 #include <iostream>
 #include <glm/vec2.hpp>
 #include "ShadersLoader.h"
+#include <stb_image.h>
 
-void initializeVao(GLuint &vao, GLuint &vbo, GLuint &ebo, GLuint* indx, GLfloat* coor) ;
+void initializeVao(GLuint vao, GLuint vbo, GLuint ebo, GLuint* indx, GLfloat* coor) {
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(coor), coor, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
+    glEnableVertexAttribArray(0);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
+}
+
+GLuint initializeShaders(const std::string source) {
+    auto vertexSource = shaders::loadShaderSourceFromFile(source.c_str());
+    const char * verShadNative = vertexSource.c_str();
+    auto shader = glCreateShader(GL_VERTEX_SHADER);
+    glShaderSource(shader, 1, &verShadNative, nullptr);
+    glCompileShader(shader);
+
+    GLint vertexShaderSuccess;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &vertexShaderSuccess);
+    if (!vertexShaderSuccess) {
+        GLchar info[512];
+        glGetShaderInfoLog(shader, sizeof(info), NULL, info);
+        std::cerr << "ERROR::SHADER LINK_FAILED\n" << info;
+        return 0;
+    }
+
+    return shader;
+}
 
 int main() {
     glfwInit();
@@ -35,7 +68,7 @@ int main() {
     }
 #endif
 
-    auto vertexSource = shaders::loadShaderSourceFromFile("resources/shaders/ver.glsl");
+    auto vertexSource = shaders::loadShaderSourceFromFile("resources/shaders/vertex.glsl");
     const char * verShadNative = vertexSource.c_str();
     auto vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &verShadNative, nullptr);
@@ -50,7 +83,7 @@ int main() {
         return 0;
     }
 
-    auto fragmentSource = shaders::loadShaderSourceFromFile("resources/shaders/frag.glsl");
+    auto fragmentSource = shaders::loadShaderSourceFromFile("resources/shaders/fragment.glsl");
     const char * fragShadNative = fragmentSource.c_str();
     auto fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
     glShaderSource(fragmentShader, 1, &fragShadNative, nullptr);
@@ -95,8 +128,6 @@ int main() {
     if (!programSuccess) {
         GLchar info[512];
         glGetProgramInfoLog(program, sizeof(info), NULL, info);
-        std::cerr << vertexSource << std::endl;
-        std::cerr << fragmentSource << std::endl;
 
         glDeleteProgram(program);
         glfwTerminate();
@@ -108,8 +139,6 @@ int main() {
     if (!circleProgramSuccess) {
         GLchar info[512];
         glGetProgramInfoLog(circleProgram, sizeof(info), NULL, info);
-        std::cerr << vertexSource << std::endl;
-        std::cerr << circleFragmentSource << std::endl;
 
         glDeleteProgram(circleProgram);
         glfwTerminate();
@@ -125,50 +154,58 @@ int main() {
     GLuint indx[] = { 0, 1, 2, 0, 2, 3};
 
     GLfloat body[] = {
-            -0.3f, -0.3f,
-             0.3f, -0.3f,
-             0.3f, 0.5f,
-            -0.3f, 0.5f
+             -0.3f, -0.3f, 0.0f, 1.0f,
+             0.3f, -0.3f, 1.0f, 1.0f,
+             0.3f, 0.5f,  1.0f, 0.0f,
+             -0.3f, 0.5f,  0.0f, 0.0f
     };
 
     GLfloat leftHand[] = {
-            -0.5f, -0.1f,
-            -0.35f, -0.1f,
-            -0.35f, 0.5f,
-            -0.5f, 0.5f
+             -0.5f, -0.1f,  0.0f, 1.0f,
+            -0.35f, -0.1f, 1.0f, 1.0f,
+             -0.35f, 0.5f, 1.0f, 0.0f,
+              -0.5f, 0.5f,  0.0f, 0.0f
     };
 
     GLfloat rightHand[] = {
-            0.35f, -0.1f,
-            0.5f, -0.1f,
-            0.5f, 0.5f,
-            0.35f, 0.5f
+            0.35f, -0.1f,  0.0f, 1.0f,
+             0.5f, -0.1f, 1.0f, 1.0f,
+              0.5f, 0.5f, 1.0f, 0.0f,
+             0.35f, 0.5f,  0.0f, 0.0f
     };
 
     GLfloat leftLeg[] = {
-            -0.3f, -0.9f,
-            -0.1f, -0.9f,
-            -0.1f, -0.3f,
-            -0.3f, -0.3f
+            -0.3f, -0.9f,  0.0f, 1.0f,
+            -0.1f, -0.9f, 1.0f, 1.0f,
+            -0.1f, -0.3f, 1.0f, 0.0f,
+            -0.3f, -0.3f,  0.0f, 0.0f
     };
 
     GLfloat rightLeg[] = {
-            0.1f, -0.9f,
-            0.3f, -0.9f,
-            0.3f, -0.3f,
-            0.1f, -0.3f
+            0.1f, -0.9f,  0.0f, 1.0f,
+            0.3f, -0.9f, 1.0f, 1.0f,
+            0.3f, -0.3f, 1.0f, 0.0f,
+            0.1f, -0.3f,  0.0f, 0.0f
     };
 
     glm::vec2 center = {0.f, 0.7f};
     float radius = 0.2f;
 
     GLfloat circle[] = {
-            center.x - radius, center.y - radius,
-            center.x + radius, center.y - radius,
-            center.x + radius, center.y + radius,
-            center.x - radius, center.y + radius
+            center.x - radius, center.y - radius, 0.0f, 1.0f,
+            center.x + radius, center.y - radius, 1.0f, 1.0f,
+            center.x + radius, center.y + radius, 1.0f, 0.0f,
+            center.x - radius, center.y + radius,  0.0f, 0.0f
     };
 
+    GLfloat background[] = {
+            -1.f, -1.f,  0.0f, 1.0f,
+            1.f, -1.f,  1.0f, 1.0f,
+            1.f, 1.f,  1.0f, 0.0f,
+            -1.f, 1.f,  0.0f, 0.0f,
+    };
+
+    GLuint backgroundVao;
     GLuint bodyVao;
     GLuint leftHandVao;
     GLuint rightHandVao;
@@ -177,18 +214,149 @@ int main() {
     GLuint circleVao;
 
     GLuint ebo;
-    GLuint vbo[6];
+    GLuint vbo[7];
 
-    glGenBuffers(6, vbo);
+    glGenBuffers(7, vbo);
     glGenBuffers(1, &ebo);
+
+    //Textures
+
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    GLint textureWidth;
+    GLint textureHeight;
+    GLint textureChannelsCount;
+    auto data = stbi_load("resources/soad.jpg", &textureWidth, &textureHeight, &textureChannelsCount, STBI_rgb);
+
+    if (data == NULL) {
+        std::cerr << "ERROR:\n" << stbi_failure_reason();
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    stbi_image_free(data);
+
+    GLuint texture1;
+    glGenTextures(1, &texture1);
+    glBindTexture(GL_TEXTURE_2D, texture1);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    textureWidth;
+    textureHeight;
+    textureChannelsCount;
+    data = stbi_load("resources/jeans.jpg", &textureWidth, &textureHeight, &textureChannelsCount, STBI_rgb);
+
+    if (data == NULL) {
+        std::cerr << "ERROR:\n" << stbi_failure_reason();
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    stbi_image_free(data);
+
+    GLuint texture2;
+    glGenTextures(1, &texture2);
+    glBindTexture(GL_TEXTURE_2D, texture2);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    textureWidth;
+    textureHeight;
+    textureChannelsCount;
+    data = stbi_load("resources/hand1.jpg", &textureWidth, &textureHeight, &textureChannelsCount, STBI_rgb);
+
+    if (data == NULL) {
+        std::cerr << "ERROR:\n" << stbi_failure_reason();
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    stbi_image_free(data);
+
+    GLuint texture3;
+    glGenTextures(1, &texture3);
+    glBindTexture(GL_TEXTURE_2D, texture3);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    textureWidth;
+    textureHeight;
+    textureChannelsCount;
+    data = stbi_load("resources/kenny.jpg", &textureWidth, &textureHeight, &textureChannelsCount, STBI_rgb);
+
+    if (data == NULL) {
+        std::cerr << "ERROR:\n" << stbi_failure_reason();
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    stbi_image_free(data);
+
+    GLuint texture4;
+    glGenTextures(1, &texture4);
+    glBindTexture(GL_TEXTURE_2D, texture4);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    textureWidth;
+    textureHeight;
+    textureChannelsCount;
+    data = stbi_load("resources/background.jpg", &textureWidth, &textureHeight, &textureChannelsCount, STBI_rgb);
+
+    if (data == NULL) {
+        std::cerr << "ERROR:\n" << stbi_failure_reason();
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    stbi_image_free(data);
+
+    //Vao
+
+    glGenVertexArrays(1, &backgroundVao);
+    glBindVertexArray(backgroundVao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo[6]);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(background), background, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 2));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
+
+    glBindVertexArray(0);
 
     glGenVertexArrays(1, &bodyVao);
     glBindVertexArray(bodyVao);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(body), body, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 2));
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
@@ -200,8 +368,11 @@ int main() {
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(leftHand), leftHand, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 2));
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
@@ -213,8 +384,11 @@ int main() {
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(rightHand), rightHand, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 2));
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
@@ -226,8 +400,10 @@ int main() {
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(leftLeg), leftLeg, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 2));
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
@@ -239,23 +415,25 @@ int main() {
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[4]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(rightLeg), rightLeg, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 2));
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
 
     glBindVertexArray(0);
 
-    //initializeVao(circleVao, vbo[5], ebo, indx, circle);
-
     glGenVertexArrays(1, &circleVao);
     glBindVertexArray(circleVao);
 
     glBindBuffer(GL_ARRAY_BUFFER, vbo[5]);
     glBufferData(GL_ARRAY_BUFFER, sizeof(circle), circle, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 4, reinterpret_cast<void *>(sizeof(GLfloat) * 2));
     glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
 
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
@@ -280,10 +458,36 @@ int main() {
 
         glUseProgram(program);
 
-        glBindVertexArray(bodyVao);
-        glUniform4f(color, 0.0, 0.0, 0.0, 1.0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture4);
+        glUniform1i(glGetUniformLocation(program, "image"), 0);
+        glBindVertexArray(backgroundVao);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glUniform1i(glGetUniformLocation(program, "image"), 0);
+        glBindVertexArray(bodyVao);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture1);
+        glUniform1i(glGetUniformLocation(program, "image"), 0);
+        glBindVertexArray(leftLegVao);
+        glUniform4f(color, 0.0, 0.0, 1.0, 1.0);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+
+        glBindVertexArray(rightLegVao);
+        glUniform4f(color, 0.0, 0.0, 1.0, 1.0);
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+        glBindVertexArray(0);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture2);
+        glUniform1i(glGetUniformLocation(program, "image"), 0);
 
         glBindVertexArray(leftHandVao);
         glUniform4f(color, 1.0, 1.0, 1.0, 1.0);
@@ -295,17 +499,12 @@ int main() {
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
         glBindVertexArray(0);
 
-        glBindVertexArray(leftLegVao);
-        glUniform4f(color, 0.0, 0.0, 1.0, 1.0);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-
-        glBindVertexArray(rightLegVao);
-        glUniform4f(color, 0.0, 0.0, 1.0, 1.0);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
 
         glUseProgram(circleProgram);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture3);
+        glUniform1i(glGetUniformLocation(program, "image"), 0);
 
         glUniform2f(size, width, height);
         glUniform1f(radiusUniform, 0.2f);
@@ -322,19 +521,4 @@ int main() {
 
     glfwTerminate();
     return 0;
-}
-
-void initializeVao(GLuint &vao, GLuint &vbo, GLuint &ebo, GLuint* indx, GLfloat* coor) {
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(coor), coor, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
 }
