@@ -4,8 +4,145 @@
 #include <iostream>
 #include <glm/vec2.hpp>
 #include "ShadersLoader.h"
+#include <stb_image.h>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/ext.hpp>
+#include "Camera.h"
 
-void initializeVao(GLuint &vao, GLuint &vbo, GLuint &ebo, GLuint* indx, GLfloat* coor) ;
+GLfloat lastCursorX;
+GLfloat lastCursorY;
+GLfloat deltaTime;
+Camera camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 0.0f, -1.0f));
+
+void cursorPositionCallback(GLFWwindow *window, double x, double y) {
+    auto xDelta = static_cast<GLfloat>(lastCursorX - x);
+    auto yDelta = static_cast<GLfloat>(lastCursorY - y);
+
+    lastCursorX = static_cast<GLfloat>(x);
+    lastCursorY = static_cast<GLfloat>(y);
+
+    camera.rotateCamera(xDelta, yDelta);
+}
+
+void processInput(GLFWwindow *window) {
+
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
+        camera.moveCamera(FORWARD, deltaTime);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {
+        camera.moveCamera(BACKWARD, deltaTime);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS) {
+        camera.moveCamera(LEFT, deltaTime);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) {
+        camera.moveCamera(RIGHT, deltaTime);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS) {
+        camera.moveCamera(DOWN, deltaTime);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS) {
+        camera.moveCamera(UP, deltaTime);
+    }
+
+    if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
+        glfwSetWindowShouldClose(window, GLFW_TRUE);
+    }
+}
+
+GLuint initializeVao(GLfloat* coor, GLuint size) {
+
+    GLuint vbo;
+    GLuint vao;
+
+    glGenBuffers(1, &vbo);
+
+    glGenVertexArrays(1, &vao);
+    glBindVertexArray(vao);
+
+    glBindBuffer(GL_ARRAY_BUFFER, vbo);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(GLfloat) * size, coor, GL_STATIC_DRAW);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 5, reinterpret_cast<void *>(sizeof(GLfloat) * 0));
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 5, reinterpret_cast<void *>(sizeof(GLfloat) * 3));
+    glEnableVertexAttribArray(0);
+    glEnableVertexAttribArray(1);
+
+    glBindVertexArray(0);
+
+    return vao;
+}
+
+GLuint initializeTexture(const char *imagePath) {
+    GLuint texture;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+
+    GLint textureWidth;
+    GLint textureHeight;
+    GLint textureChannelsCount;
+
+
+    auto data = stbi_load(imagePath, &textureWidth, &textureHeight, &textureChannelsCount, STBI_rgb);
+
+    if (data == NULL) {
+        std::cerr << "ERROR:\n" << stbi_failure_reason();
+    }
+
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, textureWidth, textureHeight, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+    glBindTexture(GL_TEXTURE_2D, 0);
+
+    stbi_image_free(data);
+
+    return texture;
+}
+
+GLuint initializeShader(const char *shaderPath, GLenum shadeType) {
+    auto vertexSource = shaders::loadShaderSourceFromFile(shaderPath);
+    const char * verShadNative = vertexSource.c_str();
+    auto shader = glCreateShader(shadeType);
+    glShaderSource(shader, 1, &verShadNative, nullptr);
+    glCompileShader(shader);
+
+    GLint vertexShaderSuccess;
+    glGetShaderiv(shader, GL_COMPILE_STATUS, &vertexShaderSuccess);
+    if (!vertexShaderSuccess) {
+        GLchar info[512];
+        glGetShaderInfoLog(shader, sizeof(info), NULL, info);
+        std::cerr << "ERROR::SHADER LINK_FAILED\n" << info;
+        return 0;
+    }
+
+    return shader;
+}
+
+GLuint createProgram(GLuint vertexShader, GLuint fragmentShader) {
+    auto program = glCreateProgram();
+    glAttachShader(program, vertexShader);
+    glAttachShader(program, fragmentShader);
+    glLinkProgram(program);
+
+    GLint programSuccess;
+    glGetProgramiv(program, GL_LINK_STATUS, &programSuccess);
+    if (!programSuccess) {
+        GLchar info[512];
+        glGetProgramInfoLog(program, sizeof(info), NULL, info);
+        std::cerr << "ERROR::Programm\n" << info;
+        glDeleteProgram(program);
+        glfwTerminate();
+        return 0;
+    }
+
+    return program;
+}
 
 int main() {
     glfwInit();
@@ -27,6 +164,13 @@ int main() {
     glfwGetFramebufferSize(window, &width, &height);
     glfwMakeContextCurrent(window);
 
+    lastCursorX = width / 2.0f;
+    lastCursorY = height / 2.0f;
+
+    glfwSetCursorPos(window, lastCursorX, lastCursorY);
+    glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+    glfwSetCursorPosCallback(window, cursorPositionCallback);
+
 #ifndef __APPLE__
     glewExperimental = GL_TRUE;
     if (glewInit() != GLEW_OK) {
@@ -35,306 +179,106 @@ int main() {
     }
 #endif
 
-    auto vertexSource = shaders::loadShaderSourceFromFile("resources/shaders/ver.glsl");
-    const char * verShadNative = vertexSource.c_str();
-    auto vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &verShadNative, nullptr);
-    glCompileShader(vertexShader);
 
-    GLint vertexShaderSuccess;
-    glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &vertexShaderSuccess);
-    if (!vertexShaderSuccess) {
-        GLchar info[512];
-        glGetShaderInfoLog(vertexShader, sizeof(info), NULL, info);
-        std::cerr << "ERROR::SHADER LINK_FAILED\n" << info;
-        return 0;
-    }
+    auto vertexShader = initializeShader("resources/shaders/ver.glsl", GL_VERTEX_SHADER);
+    auto fragmentShader = initializeShader("resources/shaders/frag.glsl", GL_FRAGMENT_SHADER);
 
-    auto fragmentSource = shaders::loadShaderSourceFromFile("resources/shaders/frag.glsl");
-    const char * fragShadNative = fragmentSource.c_str();
-    auto fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragShadNative, nullptr);
-    glCompileShader(fragmentShader);
-
-    GLint fragmentShaderSuccess;
-    glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &fragmentShaderSuccess);
-    if (!fragmentShaderSuccess) {
-        GLchar info[512];
-        glGetShaderInfoLog(fragmentShader, sizeof(info), NULL, info);
-        std::cerr << "ERROR::SHADER LINK_FAILED\n" << info;
-        return 0;
-    }
-
-    auto circleFragmentSource = shaders::loadShaderSourceFromFile("resources/shaders/circle_fragment.glsl");
-    const char * circleFragmentNative = circleFragmentSource.c_str();
-    auto circleFragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(circleFragmentShader, 1, &circleFragmentNative, nullptr);
-    glCompileShader(circleFragmentShader);
-
-    GLint circleFragmentSuccess;
-    glGetShaderiv(circleFragmentShader, GL_COMPILE_STATUS, &circleFragmentSuccess);
-    if (!circleFragmentSuccess) {
-        GLchar info[512];
-        glGetShaderInfoLog(circleFragmentShader, sizeof(info), NULL, info);
-        std::cerr << "ERROR::SHADER LINK_FAILED\n" << info;
-        return 0;
-    }
-
-    auto program = glCreateProgram();
-    glAttachShader(program, vertexShader);
-    glAttachShader(program, fragmentShader);
-    glLinkProgram(program);
-
-    auto circleProgram = glCreateProgram();
-    glAttachShader(circleProgram, vertexShader);
-    glAttachShader(circleProgram, circleFragmentShader);
-    glLinkProgram(circleProgram);
-
-    GLint programSuccess;
-    glGetProgramiv(program, GL_LINK_STATUS, &programSuccess);
-    if (!programSuccess) {
-        GLchar info[512];
-        glGetProgramInfoLog(program, sizeof(info), NULL, info);
-        std::cerr << vertexSource << std::endl;
-        std::cerr << fragmentSource << std::endl;
-
-        glDeleteProgram(program);
-        glfwTerminate();
-        return 0;
-    }
-
-    GLint circleProgramSuccess;
-    glGetProgramiv(circleProgram, GL_LINK_STATUS, &circleProgramSuccess);
-    if (!circleProgramSuccess) {
-        GLchar info[512];
-        glGetProgramInfoLog(circleProgram, sizeof(info), NULL, info);
-        std::cerr << vertexSource << std::endl;
-        std::cerr << circleFragmentSource << std::endl;
-
-        glDeleteProgram(circleProgram);
-        glfwTerminate();
-        return 0;
-    }
+    auto program = createProgram(vertexShader, fragmentShader);
 
     glDeleteShader(vertexShader);
-    glDeleteShader(circleFragmentShader);
     glDeleteShader(fragmentShader);
 
     glViewport(0,0, width, height);
 
-    GLuint indx[] = { 0, 1, 2, 0, 2, 3};
+    GLfloat coordinates[] = {
+            -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
+            0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
+            0.5f, 0.5f, -0.5f, 1.0f, 1.0f,
+            0.5f, 0.5f, -0.5f, 1.0f, 1.0f,
+            -0.5f, 0.5f, -0.5f, 0.0f, 1.0f,
+            -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
 
-    GLfloat body[] = {
-            -0.3f, -0.3f,
-             0.3f, -0.3f,
-             0.3f, 0.5f,
-            -0.3f, 0.5f
+            -0.5f, -0.5f, 0.5f, 0.0f, 0.0f,
+            0.5f, -0.5f, 0.5f, 1.0f, 0.0f,
+            0.5f, 0.5f, 0.5f, 1.0f, 1.0f,
+            0.5f, 0.5f, 0.5f, 1.0f, 1.0f,
+            -0.5f, 0.5f, 0.5f, 0.0f, 1.0f,
+            -0.5f, -0.5f, 0.5f, 0.0f, 0.0f,
+
+            -0.5f, 0.5f, 0.5f, 1.0f, 0.0f,
+            -0.5f, 0.5f, -0.5f, 1.0f, 1.0f,
+            -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+            -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+            -0.5f, -0.5f, 0.5f, 0.0f, 0.0f,
+            -0.5f, 0.5f, 0.5f, 1.0f, 0.0f,
+
+            0.5f, 0.5f, 0.5f, 1.0f, 0.0f,
+            0.5f, 0.5f, -0.5f, 1.0f, 1.0f,
+            0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+            0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+            0.5f, -0.5f, 0.5f, 0.0f, 0.0f,
+            0.5f, 0.5f, 0.5f, 1.0f, 0.0f,
+
+            -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+            0.5f, -0.5f, -0.5f, 1.0f, 1.0f,
+            0.5f, -0.5f, 0.5f, 1.0f, 0.0f,
+            0.5f, -0.5f, 0.5f, 1.0f, 0.0f,
+            -0.5f, -0.5f, 0.5f, 0.0f, 0.0f,
+            -0.5f, -0.5f, -0.5f, 0.0f, 1.0f,
+
+            -0.5f, 0.5f, -0.5f, 0.0f, 1.0f,
+            0.5f, 0.5f, -0.5f, 1.0f, 1.0f,
+            0.5f, 0.5f, 0.5f, 1.0f, 0.0f,
+            0.5f, 0.5f, 0.5f, 1.0f, 0.0f,
+            -0.5f, 0.5f, 0.5f, 0.0f, 0.0f,
+            -0.5f, 0.5f, -0.5f, 0.0f, 1.0f
     };
 
-    GLfloat leftHand[] = {
-            -0.5f, -0.1f,
-            -0.35f, -0.1f,
-            -0.35f, 0.5f,
-            -0.5f, 0.5f
-    };
+    //Textures
 
-    GLfloat rightHand[] = {
-            0.35f, -0.1f,
-            0.5f, -0.1f,
-            0.5f, 0.5f,
-            0.35f, 0.5f
-    };
+    GLuint texture = initializeTexture("resources/background.jpg");
 
-    GLfloat leftLeg[] = {
-            -0.3f, -0.9f,
-            -0.1f, -0.9f,
-            -0.1f, -0.3f,
-            -0.3f, -0.3f
-    };
+    //Vao
 
-    GLfloat rightLeg[] = {
-            0.1f, -0.9f,
-            0.3f, -0.9f,
-            0.3f, -0.3f,
-            0.1f, -0.3f
-    };
+   GLuint cubeVao = initializeVao(coordinates, 180);
 
-    glm::vec2 center = {0.f, 0.7f};
-    float radius = 0.2f;
-
-    GLfloat circle[] = {
-            center.x - radius, center.y - radius,
-            center.x + radius, center.y - radius,
-            center.x + radius, center.y + radius,
-            center.x - radius, center.y + radius
-    };
-
-    GLuint bodyVao;
-    GLuint leftHandVao;
-    GLuint rightHandVao;
-    GLuint leftLegVao;
-    GLuint rightLegVao;
-    GLuint circleVao;
-
-    GLuint ebo;
-    GLuint vbo[6];
-
-    glGenBuffers(6, vbo);
-    glGenBuffers(1, &ebo);
-
-    glGenVertexArrays(1, &bodyVao);
-    glBindVertexArray(bodyVao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[0]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(body), body, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-
-    glGenVertexArrays(1, &leftHandVao);
-    glBindVertexArray(leftHandVao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[1]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(leftHand), leftHand, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-
-    glGenVertexArrays(1, &rightHandVao);
-    glBindVertexArray(rightHandVao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[2]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(rightHand), rightHand, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-
-    glGenVertexArrays(1, &leftLegVao);
-    glBindVertexArray(leftLegVao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[3]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(leftLeg), leftLeg, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-
-    glGenVertexArrays(1, &rightLegVao);
-    glBindVertexArray(rightLegVao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[4]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(rightLeg), rightLeg, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-
-    //initializeVao(circleVao, vbo[5], ebo, indx, circle);
-
-    glGenVertexArrays(1, &circleVao);
-    glBindVertexArray(circleVao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo[5]);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(circle), circle, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
-
-    glBindBuffer(GL_ARRAY_BUFFER, 0);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-
-    GLint radiusUniform = glGetUniformLocation(circleProgram, "radius");
-    GLint size = glGetUniformLocation(circleProgram, "windowSize");
-    GLint circleColor = glGetUniformLocation(circleProgram, "color");
-    GLint color = glGetUniformLocation(program, "outColor");
-    GLint circleCenter = glGetUniformLocation(circleProgram, "center");
-
+    auto projectionMatrix = glm::perspective(glm::radians(45.0f), ((float) width / (float) height), 0.01f, 100.0f);
+    glm::mat4 modelMatrix(1);
+    modelMatrix = glm::translate(modelMatrix, glm::vec3(0.0f, 0.0f, -5.0f));
 
     while (!glfwWindowShouldClose(window)) {
+
+        auto startTime = glfwGetTime();
+
         glfwPollEvents();
 
-        glClearColor(1.f, 0.5f, 0.f, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT);
+        processInput(window);
+
+        glEnable(GL_DEPTH_TEST);
+
+        glClearColor(0.f, 0.f, 0.f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        auto tmp = glm::rotate(modelMatrix, (float) (glm::radians(45.0f) * glfwGetTime()), glm::vec3(0.6f, 0.6f, 0.2f));
 
         glUseProgram(program);
 
-        glBindVertexArray(bodyVao);
-        glUniform4f(color, 0.0, 0.0, 0.0, 1.0);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        glUniformMatrix4fv(glGetUniformLocation(program, "projectionMatrix"), 1, GL_FALSE,
+                           glm::value_ptr(projectionMatrix * camera.getViewMatrix()));
+        glUniformMatrix4fv(glGetUniformLocation(program, "modelMatrix"), 1, GL_FALSE, glm::value_ptr(tmp));
 
-        glBindVertexArray(leftHandVao);
-        glUniform4f(color, 1.0, 1.0, 1.0, 1.0);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture);
+        glUniform1i(glGetUniformLocation(program, "image"), 0);
 
-        glBindVertexArray(rightHandVao);
-        glUniform4f(color, 1.0, 1.0, 1.0, 1.0);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-
-        glBindVertexArray(leftLegVao);
-        glUniform4f(color, 0.0, 0.0, 1.0, 1.0);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-
-        glBindVertexArray(rightLegVao);
-        glUniform4f(color, 0.0, 0.0, 1.0, 1.0);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
-
-        glUseProgram(circleProgram);
-
-        glUniform2f(size, width, height);
-        glUniform1f(radiusUniform, 0.2f);
-        glUniform4f(circleColor, 0.0, 1.0, 0.0, 1.0);
-        glUniform2f(circleCenter, center.x, center.y);
-
-        glBindVertexArray(circleVao);
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-        glBindVertexArray(0);
+        glBindVertexArray(cubeVao);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
 
         glfwSwapBuffers(window);
         std::this_thread::sleep_for(std::chrono::nanoseconds(15000));
+        deltaTime = static_cast<GLfloat>(glfwGetTime() - startTime);
     }
 
     glfwTerminate();
     return 0;
-}
-
-void initializeVao(GLuint &vao, GLuint &vbo, GLuint &ebo, GLuint* indx, GLfloat* coor) {
-    glGenVertexArrays(1, &vao);
-    glBindVertexArray(vao);
-
-    glBindBuffer(GL_ARRAY_BUFFER, vbo);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(coor), coor, GL_STATIC_DRAW);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, sizeof(GLfloat) * 2, 0);
-    glEnableVertexAttribArray(0);
-
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ebo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indx), indx, GL_STATIC_DRAW);
-
-    glBindVertexArray(0);
 }
